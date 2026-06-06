@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: #212327;
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* ── Print / Export PDF styles ───────────────────────────────────────────────
+   Goal: clean white report — professional enough to share with clients.
+   Strategy: override all dark Tailwind bg/text/border classes, hide UI chrome.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* ── Page setup ── */
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm;
+  }
+
+  /* ── Force colour rendering ── */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── NUCLEAR background reset (avoids broken escaped-class selectors) ── */
+  /* All HTML elements → transparent, so the white html/body shows through.  */
+  /* SVG elements use fill/stroke not background-color, so charts are safe.  */
+  *:not(svg):not(svg *) {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+  html, body {
+    background-color: white !important;
+    color: #111827 !important;
+  }
+
+  /* ── All HTML text → dark ── */
+  *:not(svg):not(svg *) {
+    color: #1f2937 !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* ── Restore status / accent colours ── */
+  .text-emerald-400, [class*="text-emerald"] { color: #065f46 !important; }
+  .text-red-400,     [class*="text-red-"]    { color: #991b1b !important; }
+  .text-yellow-400,  [class*="text-yellow"]  { color: #92400e !important; }
+  .text-amber-500,   [class*="text-amber"]   { color: #92400e !important; }
+  .text-blue-400,    [class*="text-blue"]    { color: #1d4ed8 !important; }
+
+  /* ── Min-height wrapper ── */
+  .min-h-screen { min-height: unset !important; }
+
+  /* ── Hide UI chrome ── */
+  .no-print { display: none !important; }
+
+  /* ── Remove shadows ── */
+  * { box-shadow: none !important; }
+
+  /* ── Page break control ── */
+  .print-break-before { page-break-before: always; }
+  .print-avoid-break  { page-break-inside: avoid; }
+
+  /* ── Ensure tables don't break mid-row ── */
+  tr { page-break-inside: avoid; }
+
+  /* ── Header stays compact ── */
+  h1 { font-size: 20pt !important; }
+
+  /* ── Stacked layout: sidebar full-width above charts ── */
+  .print-layout-row {
+    flex-direction: column !important;
+  }
+  .print-layout-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 12px !important;
+  }
+  /* Key Metrics card: flow into 3 balanced columns */
+  .print-layout-sidebar > div {
+    height: auto !important;
+    column-count: 3 !important;
+    column-gap: 32px !important;
+    column-fill: balance !important;
+  }
+  /* Panel title + listing name span all columns */
+  .print-layout-sidebar > div > p:first-child,
+  .print-layout-sidebar > div > p:nth-child(2) {
+    column-span: all !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* ── Trend Charts: always 3 columns ── */
+  .print-trends-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* ── Tables: compact font for print ── */
+  table             { font-size: 8pt !important; width: 100% !important; }
+  thead th, tbody td { padding: 2px 5px !important; white-space: nowrap !important; }
+
+  /* ── Listing Performance Table: start on a new page ── */
+  .print-break-listing-perf { page-break-before: always !important; }
+}

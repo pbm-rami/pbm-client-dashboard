@@ -1,0 +1,39 @@
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Next.js build output ─────────────────────────────────────
+.next/
+out/
+build/
+
+# ── Environment files — NEVER COMMIT ─────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── GCP service account key — NEVER COMMIT ───────────────────
+*.json
+!package.json
+!package-lock.json
+!jsconfig.json
+!vercel.json
+!tsconfig.json
+
+# ── macOS ─────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editor ────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
