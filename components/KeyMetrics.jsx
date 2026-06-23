@@ -23,7 +23,7 @@ function InfoTooltip({ text }) {
   return (
     <span className="relative group ml-1 cursor-help">
       <span className="text-slate-600 hover:text-slate-400 text-[10px]">ⓘ</span>
-      <span className="absolute left-0 bottom-full mb-1 z-50 w-52 bg-[#1c1e22] border border-[#383b40] text-slate-300 text-[10px] rounded-lg px-3 py-2 shadow-xl leading-relaxed hidden group-hover:block">
+      <span className="absolute left-0 bottom-full mb-1 z-50 w-64 bg-[#1c1e22] border border-[#383b40] text-slate-300 text-[10px] rounded-lg px-3 py-2 shadow-xl leading-relaxed hidden group-hover:block">
         {text}
       </span>
     </span>
@@ -98,69 +98,122 @@ export default function KeyMetrics({ portfolioData: p, listingData: l, mode = 'p
       <MetricRow
         label="Rental Revenue (Net)"
         value={fmt$(isListing ? l?.rental_revenue : p?.total_rental_revenue)}
-        tooltip="Net rental income received after deducting OTA/channel commissions and cleaning fees. This is the amount paid out to the property owner."
+        tooltip="Nightly revenue excluding fees/taxes. Used for Goal Tracking."
       />
       <MetricRow
         label="Gross Revenue"
         value={fmt$(isListing ? l?.total_revenue : p?.total_revenue)}
-        tooltip="Total revenue collected from guests including rental income, cleaning fees, and any additional charges before deductions. Used for goal tracking."
+        tooltip="Rental revenue + fees + taxes (excludes channel commissions)."
       />
-      <MetricRow label="Revenue Goal" value={fmt$(isListing ? l?.rental_revenue_goal : p?.total_revenue_goal)} />
+      <MetricRow
+        label="Revenue Goal"
+        value={fmt$(isListing ? l?.rental_revenue_goal : p?.total_revenue_goal)}
+        tooltip="The target rental revenue your property could generate. It is the product of your Average Daily Rate (ADR) and booked nights."
+      />
       <MetricRow
         label="% to Goal"
         value={fmtPct(goalPct)}
         valueClass={goalColor}
+        tooltip="Progress toward the revenue goal shown as a percentage."
       />
       <MetricRow
         label="Revenue vs LY"
         value={fmtDelta(isListing ? l?.revenue_vs_ly_pct : p?.rental_revenue_vs_ly_pct)}
         valueClass={deltaClass(isListing ? l?.revenue_vs_ly_pct : p?.rental_revenue_vs_ly_pct)}
+        tooltip="Comparison of current rental revenue against the same period last year (LY), showing revenue growth or decline as a percentage or dollar value."
       />
       <MetricRow
         label="Revenue vs STLY"
         value={fmtDelta(isListing ? l?.revenue_vs_stly_pct : p?.rental_revenue_vs_stly_pct)}
         valueClass={deltaClass(isListing ? l?.revenue_vs_stly_pct : p?.rental_revenue_vs_stly_pct)}
+        tooltip="Comparison of current rental revenue versus the Same Time Last Year (STLY) booking pace, measuring how revenue is performing relative to where it stood at the same point before arrival dates."
       />
 
       {/* OCCUPANCY */}
       <SectionHeader title="OCCUPANCY & RATES" />
-      <MetricRow label="Occupancy" value={fmtPct(isListing ? l?.occupancy_pct : p?.avg_occupancy_pct)} />
+      <MetricRow
+        label="Occupancy"
+        value={fmtPct(isListing ? l?.occupancy_pct : p?.avg_occupancy_pct)}
+        tooltip="The percentage of available nights that were booked during the selected time period."
+      />
       <MetricRow
         label="Occ vs STLY"
         value={fmtDelta(isListing ? l?.occ_vs_stly_pct : p?.occ_vs_stly_pct)}
         valueClass={deltaClass(isListing ? l?.occ_vs_stly_pct : p?.occ_vs_stly_pct)}
+        tooltip="Comparison of current occupancy against occupancy at the Same Time Last Year, helping evaluate booking pace relative to prior-year performance."
       />
       <MetricRow
         label="Occ vs Market"
         value={fmtDelta(isListing ? l?.occ_vs_market : p?.avg_occ_vs_market, 'pp')}
         valueClass={deltaClass(isListing ? l?.occ_vs_market : p?.avg_occ_vs_market)}
+        tooltip="Comparison of your property's occupancy rate against the occupancy rate of your selected market or competitive set."
       />
-      <MetricRow label="Market Occ" value={fmtPct(isListing ? l?.market_occupancy_pct : p?.avg_market_occupancy_pct)} valueClass="text-slate-300" />
-      <MetricRow label="ADR" value={fmt$(isListing ? l?.rental_adr : p?.avg_adr)} />
+      <MetricRow
+        label="Market Occ"
+        value={fmtPct(isListing ? l?.market_occupancy_pct : p?.avg_market_occupancy_pct)}
+        valueClass="text-slate-300"
+        tooltip="Average occupancy rate of your selected market or competitive set during the selected time period."
+      />
+      <MetricRow
+        label="ADR"
+        value={fmt$(isListing ? l?.rental_adr : p?.avg_adr)}
+        tooltip="The average rental revenue earned per booked night during the selected period. Calculated as Revenue ÷ Length of Stay."
+      />
       <MetricRow
         label="ADR vs Market"
         value={fmtDelta(isListing ? l?.adr_vs_market_pct : p?.adr_vs_market_pct)}
         valueClass={deltaClass(isListing ? l?.adr_vs_market_pct : p?.adr_vs_market_pct)}
+        tooltip="Comparison of your property's Average Daily Rate (ADR) against the market ADR, indicating whether rates are positioned above or below competitors."
       />
-      <MetricRow label="Market ADR" value={fmt$(isListing ? l?.market_adr : p?.avg_market_adr)} valueClass="text-slate-300" />
-      <MetricRow label="ADR Index" value={fmtIdx(adrIdx)} valueClass={adrIdxColor} />
-      <MetricRow label="RevPAR" value={fmt$(isListing ? l?.rental_revpar : p?.avg_revpar)} />
+      <MetricRow
+        label="Market ADR"
+        value={fmt$(isListing ? l?.market_adr : p?.avg_market_adr)}
+        valueClass="text-slate-300"
+        tooltip="Average Daily Rate (ADR) achieved by the selected market or competitive set for the chosen period."
+      />
+      <MetricRow
+        label="ADR Index"
+        value={fmtIdx(adrIdx)}
+        valueClass={adrIdxColor}
+        tooltip="Measures how your ADR compares to the market. Calculated as (Rental ADR ÷ Market ADR) × 100. Above 100 means your ADR exceeds the market average; below 100 means it trails."
+      />
+      <MetricRow
+        label="RevPAR"
+        value={fmt$(isListing ? l?.rental_revpar : p?.avg_revpar)}
+        tooltip="Revenue generated per available night in the selected period, combining occupancy and pricing performance. Calculated as ADR × Occupancy."
+      />
       <MetricRow
         label="RevPAR vs STLY"
         value={fmtDelta(isListing ? l?.revpar_vs_stly_pct : p?.revpar_vs_stly_pct)}
         valueClass={deltaClass(isListing ? l?.revpar_vs_stly_pct : p?.revpar_vs_stly_pct)}
+        tooltip="Comparison of current RevPAR versus the Same Time Last Year (STLY) booking pace, measuring how overall revenue performance compares relative to prior-year pacing."
       />
       <MetricRow
         label="RevPAR vs Market"
         value={fmtDelta(isListing ? null : p?.revpar_vs_market_pct)}
         valueClass={deltaClass(isListing ? null : p?.revpar_vs_market_pct)}
+        tooltip="Comparison of your property's RevPAR against the market RevPAR, indicating overall revenue performance relative to competitors."
       />
-      <MetricRow label="Market RevPAR" value={fmt$(isListing ? l?.market_revpar : p?.avg_market_revpar)} valueClass="text-slate-300" />
-      <MetricRow label="RevPAR Index" value={fmtIdx(revparIdx)} valueClass={revparIdxColor} />
+      <MetricRow
+        label="Market RevPAR"
+        value={fmt$(isListing ? l?.market_revpar : p?.avg_market_revpar)}
+        valueClass="text-slate-300"
+        tooltip="The market's Revenue Per Available Room (RevPAR) used to benchmark your performance against your selected competitive set."
+      />
+      <MetricRow
+        label="RevPAR Index"
+        value={fmtIdx(revparIdx)}
+        valueClass={revparIdxColor}
+        tooltip="Measures how your RevPAR compares to the market. Calculated as (Rental RevPAR ÷ Market RevPAR) × 100. Above 100 means your property is outperforming the market; below 100 means performance trails the market average."
+      />
 
       {/* INVENTORY */}
       <SectionHeader title="INVENTORY" />
-      <MetricRow label="Blocked Nights" value={fmtNum(isListing ? l?.blocked_nights : p?.total_blocked_nights)} />
+      <MetricRow
+        label="Blocked Nights"
+        value={fmtNum(isListing ? l?.blocked_nights : p?.total_blocked_nights)}
+        tooltip="Total number of nights unavailable for booking due to owner stays, maintenance, operational holds, or manually blocked dates."
+      />
       {isListing && (
         <MetricRow label="Last Booked" value={fmtDate(l?.last_booked_date)} valueClass="text-slate-300" />
       )}
@@ -168,6 +221,7 @@ export default function KeyMetrics({ portfolioData: p, listingData: l, mode = 'p
         label="Potential Lost"
         value={fmt$(isListing ? l?.potential_revenue_lost : p?.total_potential_revenue_lost)}
         valueClass="text-red-400"
+        tooltip="Estimated rental revenue opportunity lost due to blocked nights or unavailable inventory, calculated based on expected occupancy and projected ADR for those dates."
       />
 
       <p className="text-slate-600 text-xs mt-4 pt-3 border-t border-[#383b40]">
