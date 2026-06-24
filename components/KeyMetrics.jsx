@@ -22,7 +22,7 @@ const fmtDate = (v) => {
 function InfoTooltip({ text }) {
   return (
     <span className="relative group ml-1 cursor-help">
-      <span className="text-slate-600 hover:text-slate-400 text-[10px]">ⓘ</span>
+      <span className="text-slate-400 hover:text-white text-[10px]">ⓘ</span>
       <span className="absolute left-0 bottom-full mb-1 z-50 w-64 bg-[#1c1e22] border border-[#383b40] text-slate-300 text-[10px] rounded-lg px-3 py-2 shadow-xl leading-relaxed hidden group-hover:block">
         {text}
       </span>
