@@ -13,16 +13,25 @@ const bigquery = new BigQuery({
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const month   = searchParams.get('month');    // YYYY-MM
+    const month   = searchParams.get('month');    // "YYYY-MM" or a quarter key like "2026-Q1"
     const listing = searchParams.get('listing');  // listing name or empty
 
     const session    = await getServerSession(authOptions);
     const clientName = getClientName(session, request);
 
+    // A quarter option in the dashboard dropdown passes a key like
+    // "2026-Q1" instead of "2026-01" — route to the quarterly sibling
+    // view in that case so the Listings Table doesn't come back empty.
+    const isQuarter  = !!(month && /^\d{4}-Q[1-4]$/.test(month));
+    const sourceView = isQuarter
+      ? 'vw_listing_performance_quarterly'
+      : 'vw_listing_performance';
+
     // max_booked: ensures last_booked_date always reflects the most recent
-    // booking across ALL months, not just the filtered month.
+    // booking across ALL months, not just the filtered month/quarter —
+    // always sourced from the monthly view regardless of grain.
     // lp: main CTE with all fields; joins max_booked so last_booked_date
-    // is always accurate regardless of which month is selected.
+    // is always accurate regardless of which period is selected.
     const clientFilter = clientName
       ? `WHERE client_name = @clientName`
       : `WHERE 1=1`;
@@ -47,8 +56,11 @@ export async function GET(request) {
           src.client_name,
           src.analyst_name,
           src.report_month,
-          FORMAT_DATE('%b %Y', src.report_month)          AS month_label,
-          FORMAT_DATE('%Y-%m', src.report_month)          AS month_key,
+          ${isQuarter
+            ? `src.month_label                                AS month_label,
+          src.month_key                                  AS month_key,`
+            : `FORMAT_DATE('%b %Y', src.report_month)          AS month_label,
+          FORMAT_DATE('%Y-%m', src.report_month)          AS month_key,`}
           -- Always use the max last_booked_date across all months
           COALESCE(mb.last_booked_date_max, src.last_booked_date) AS last_booked_date,
 
@@ -108,7 +120,7 @@ export async function GET(request) {
           src.avg_los,
           src.avg_booking_window
 
-        FROM \`pbm-pl-data-bank.mira_analytics.vw_listing_performance\` src
+        FROM \`pbm-pl-data-bank.mira_analytics.${sourceView}\` src
         LEFT JOIN max_booked mb ON src.listing_name = mb.listing_name
         ${clientFilter}
       )

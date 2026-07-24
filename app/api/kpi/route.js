@@ -15,12 +15,20 @@ export async function GET(request) {
     const session    = await getServerSession(authOptions);
     const clientName = getClientName(session, request);
 
-    // CTE pulls all fields from the generic client view,
-    // adds month_key and month_label so downstream components
-    // don't need to know the underlying date field is a DATE.
+    // CTE pulls all fields from the generic client view, PLUS the
+    // quarterly sibling view, UNION ALL'd together so the dropdown
+    // can offer both months and quarters from one fetch.
+    // Both branches expose the same column list (month_key /
+    // month_label / report_month) so no other component needs to
+    // know whether a row is a month or a quarter — period_type
+    // is the only new field, used to split the dropdown and to
+    // keep quarter rows out of month-only trend charts.
+    const clientFilter = clientName ? ` AND client_name = @clientName` : '';
+
     let query = `
       WITH cp AS (
         SELECT
+          'month' AS period_type,
           client_name,
           FORMAT_DATE('%Y-%m', report_month)   AS month_key,
           FORMAT_DATE('%b %Y', report_month)   AS month_label,
@@ -59,18 +67,51 @@ export async function GET(request) {
           pickup_15_30d,
           pickup_31_60d
         FROM \`pbm-pl-data-bank.mira_analytics.vw_client_performance\`
-        WHERE 1=1
-    `;
+        WHERE 1=1 ${clientFilter}
 
-    const params = {};
+        UNION ALL
 
-    // Admin with no ?client= sees all clients; otherwise filter by name
-    if (clientName) {
-      query += ` AND client_name = @clientName`;
-      params.clientName = clientName;
-    }
-
-    query += `
+        SELECT
+          'quarter' AS period_type,
+          client_name,
+          month_key,       -- pre-baked "2026-Q1" in the view
+          month_label,     -- pre-baked "Q1 2026" in the view
+          report_month,    -- quarter start date
+          active_listings,
+          total_bedrooms,
+          total_rental_revenue,
+          total_revenue,
+          total_revenue_goal,
+          pct_to_goal,
+          total_rental_revenue_stly,
+          rental_revenue_vs_stly_pct,
+          total_rental_revenue_ly,
+          rental_revenue_vs_ly_pct,
+          avg_occupancy_pct,
+          avg_occupancy_pct_stly,
+          avg_market_occupancy_pct,
+          occ_vs_stly_pct,
+          avg_occ_vs_market,
+          avg_adr,
+          avg_adr_stly,
+          avg_market_adr,
+          adr_vs_market_pct,
+          avg_adr_index,
+          avg_revpar,
+          avg_revpar_stly,
+          avg_market_revpar,
+          revpar_vs_stly_pct,
+          revpar_vs_market_pct,
+          avg_revpar_index,
+          total_booked_nights,
+          total_blocked_nights,
+          total_potential_revenue_lost,
+          pickup_7d,
+          pickup_8_14d,
+          pickup_15_30d,
+          pickup_31_60d
+        FROM \`pbm-pl-data-bank.mira_analytics.vw_client_performance_quarterly\`
+        WHERE 1=1 ${clientFilter}
       )
       SELECT
         *,
@@ -83,8 +124,12 @@ export async function GET(request) {
         -- revenue_gap: how far short (or ahead) of goal
         ROUND(total_revenue_goal - total_rental_revenue, 2) AS revenue_gap
       FROM cp
-      ORDER BY report_month DESC
+      ORDER BY report_month DESC, period_type ASC
     `;
+
+    // Admin with no ?client= sees all clients; otherwise filter by name.
+    // Same named param is safe to reuse across both UNION ALL branches.
+    const params = clientName ? { clientName } : {};
 
     const [rows] = await bigquery.query({
       query,

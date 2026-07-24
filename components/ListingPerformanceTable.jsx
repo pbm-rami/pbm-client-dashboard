@@ -64,7 +64,7 @@ export default function ListingPerformanceTable({ data, allMonthsData }) {
             onClick={() => setShowAllMonths(false)}
             className={`px-3 py-1 rounded-md transition-colors ${!showAllMonths ? 'bg-[#383b40] text-white' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            Current Month
+            Selected Period
           </button>
           <button
             onClick={() => setShowAllMonths(true)}
@@ -77,7 +77,7 @@ export default function ListingPerformanceTable({ data, allMonthsData }) {
       <p className="text-slate-500 text-xs mb-4">
         {showAllMonths
           ? 'All months by listing · scroll right for all columns'
-          : 'Full per-listing breakdown for the selected month · scroll right for all columns'}
+          : 'Full per-listing breakdown for the selected month or quarter · scroll right for all columns'}
       </p>
 
       <div className="overflow-x-auto">

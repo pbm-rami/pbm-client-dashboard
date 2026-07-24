@@ -69,15 +69,19 @@ export default function ClientDashboard() {
         setAllListingNames(names);
         setAllListingsData(allListRows);
 
-        // Default to current month if available, otherwise most recent month with data
+        // Default to current month if available, otherwise most recent month with data.
+        // Restricted to period_type === 'month' rows — quarters are an opt-in extra
+        // choice in the dropdown, never the initial default view. (Without this filter,
+        // "2026-Q3" sorts after "2026-09" lexicographically and could hijack the default.)
+        const monthRows = kpiRows.filter(r => r.period_type === 'month');
         const currentMonthKey = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-        const hasCurrentMonth = kpiRows.some(r => r.month_key === currentMonthKey);
-        const mostRecentWithRevenue = [...kpiRows]
+        const hasCurrentMonth = monthRows.some(r => r.month_key === currentMonthKey);
+        const mostRecentWithRevenue = [...monthRows]
           .filter(r => (r.total_rental_revenue ?? 0) > 0 || (r.total_revenue_goal ?? 0) > 0)
           .sort((a, b) => b.month_key > a.month_key ? 1 : -1)[0]?.month_key;
         const defaultMonth = hasCurrentMonth
           ? currentMonthKey
-          : (mostRecentWithRevenue || kpiRows[0]?.month_key || '');
+          : (mostRecentWithRevenue || monthRows[0]?.month_key || '');
         setSelectedMonth(defaultMonth);
       } catch (e) {
         setError(e.message);
@@ -126,9 +130,9 @@ export default function ClientDashboard() {
   const currentKpi     = kpiData.find(r => r.month_key === selectedMonth);
   const currentListing = selectedListing !== 'all' ? listingsData[0] : null;
 
-  const availableMonths = kpiData.filter(r =>
-    (r.total_rental_revenue ?? 0) > 0 || (r.total_revenue_goal ?? 0) > 0
-  );
+  const hasData = r => (r.total_rental_revenue ?? 0) > 0 || (r.total_revenue_goal ?? 0) > 0;
+  const availableMonths   = kpiData.filter(r => r.period_type === 'month'   && hasData(r));
+  const availableQuarters = kpiData.filter(r => r.period_type === 'quarter' && hasData(r));
 
   const sortByMonth = arr =>
     [...arr].sort((a, b) => {
@@ -227,9 +231,18 @@ export default function ClientDashboard() {
             onChange={e => setSelectedMonth(e.target.value)}
             className="flex-1 sm:flex-none px-3 py-1.5 bg-[#212327] border border-[#383b40] rounded-lg text-white text-sm focus:outline-none focus:border-[#e4cf8b] cursor-pointer"
           >
-            {availableMonths.map(r => (
-              <option key={r.month_key} value={r.month_key}>{r.month_label}</option>
-            ))}
+            <optgroup label="Months">
+              {availableMonths.map(r => (
+                <option key={r.month_key} value={r.month_key}>{r.month_label}</option>
+              ))}
+            </optgroup>
+            {availableQuarters.length > 0 && (
+              <optgroup label="Quarters">
+                {availableQuarters.map(r => (
+                  <option key={r.month_key} value={r.month_key}>{r.month_label}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           <select
             value={selectedListing}

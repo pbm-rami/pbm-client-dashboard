@@ -67,7 +67,7 @@ export default function KeyMetrics({ portfolioData: p, listingData: l, mode = 'p
   if (!p && !l) {
     return (
       <div className="bg-[#2a2c30] border border-[#383b40] rounded-xl p-5 flex items-center justify-center">
-        <p className="text-slate-500 text-sm">Select a month to view metrics</p>
+        <p className="text-slate-500 text-sm">Select a month or quarter to view metrics</p>
       </div>
     );
   }
