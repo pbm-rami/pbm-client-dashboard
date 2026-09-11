@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { getClientName } from '@/lib/client';
+import { getClientNames } from '@/lib/client';
 
 const bigquery = new BigQuery({
   projectId: process.env.GCP_PROJECT_ID,
@@ -17,7 +17,13 @@ export async function GET(request) {
     const listing = searchParams.get('listing');  // listing name or empty
 
     const session    = await getServerSession(authOptions);
-    const clientName = getClientName(session, request);
+    const clientNames = getClientNames(session, request);
+    // Empty array = this login resolves to no client scope (see lib/client.js).
+    // Fail closed: return no data rather than an unfiltered query.
+    if (Array.isArray(clientNames) && clientNames.length === 0) {
+      return Response.json({ data: [] });
+    }
+
 
     // A quarter option in the dashboard dropdown passes a key like
     // "2026-Q1" instead of "2026-01" — route to the quarterly sibling
@@ -32,8 +38,8 @@ export async function GET(request) {
     // always sourced from the monthly view regardless of grain.
     // lp: main CTE with all fields; joins max_booked so last_booked_date
     // is always accurate regardless of which period is selected.
-    const clientFilter = clientName
-      ? `WHERE client_name = @clientName`
+    const clientFilter = clientNames
+      ? `WHERE client_name IN UNNEST(@clientNames)`
       : `WHERE 1=1`;
 
     let query = `
@@ -137,7 +143,7 @@ export async function GET(request) {
       WHERE 1=1
     `;
 
-    const params = clientName ? { clientName } : {};
+    const params = clientNames ? { clientNames } : {};
 
     if (month) {
       query += ` AND month_key = @month`;

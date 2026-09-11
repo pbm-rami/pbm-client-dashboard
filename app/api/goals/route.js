@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { getClientName } from '@/lib/client';
+import { getClientNames } from '@/lib/client';
 
 const bigquery = new BigQuery({
   projectId: process.env.GCP_PROJECT_ID,
@@ -16,7 +16,13 @@ export async function GET(request) {
     const month = searchParams.get('month'); // YYYY-MM
 
     const session    = await getServerSession(authOptions);
-    const clientName = getClientName(session, request);
+    const clientNames = getClientNames(session, request);
+    // Empty array = this login resolves to no client scope (see lib/client.js).
+    // Fail closed: return no data rather than an unfiltered query.
+    if (Array.isArray(clientNames) && clientNames.length === 0) {
+      return Response.json({ data: [] });
+    }
+
 
     let query = `
       SELECT
@@ -31,9 +37,9 @@ export async function GET(request) {
 
     const params = {};
 
-    if (clientName) {
-      query += ` AND client_name = @clientName`;
-      params.clientName = clientName;
+    if (clientNames) {
+      query += ` AND client_name IN UNNEST(@clientNames)`;
+      params.clientNames = clientNames;
     }
 
     if (month) {

@@ -26,7 +26,7 @@ export async function PUT(request, { params }) {
 
   try {
     const body = await request.json();
-    const { display_name, email, password, client_name, role, is_active } = body;
+    const { display_name, email, password, client_name, client_names, role, is_active } = body;
 
     const setClauses  = ['updated_at = CURRENT_TIMESTAMP()'];
     const queryParams = { id };
@@ -48,6 +48,22 @@ export async function PUT(request, { params }) {
       // NULLIF converts empty string → NULL (admin has no client_name)
       setClauses.push('client_name = NULLIF(@client_name, \'\')');
       queryParams.client_name = client_name?.trim() ?? '';
+    }
+    if (client_names !== undefined) {
+      // Partner sub-access: one login → several BigQuery client names.
+      // An empty selection is written as a typed empty array literal rather
+      // than a parameter, because BigQuery cannot infer the element type of an
+      // empty array param. Empty here means "fall back to client_name" —
+      // see lib/client.js getClientNames().
+      const cleaned = (Array.isArray(client_names) ? client_names : [])
+        .map(n => String(n).trim())
+        .filter(Boolean);
+      if (cleaned.length > 0) {
+        setClauses.push('client_names = @client_names');
+        queryParams.client_names = cleaned;
+      } else {
+        setClauses.push('client_names = ARRAY<STRING>[]');
+      }
     }
     if (role !== undefined) {
       setClauses.push('role = @role');
