@@ -317,12 +317,20 @@ export default function AdminClientsPage() {
               {loading ? 'Loading…' : `${activeCount} active · ${inactiveCount} inactive`}
             </p>
           </div>
-          <button
-            onClick={() => setModal({ mode: 'add' })}
-            className="self-start sm:self-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm rounded-lg transition-colors"
-          >
-            + Add User
-          </button>
+          <div className="self-start sm:self-auto flex gap-2">
+            <button
+              onClick={() => router.push('/admin/properties')}
+              className="px-4 py-2 bg-[#2a2c30] border border-[#383b40] hover:bg-[#32353a] text-slate-200 font-semibold text-sm rounded-lg transition-colors"
+            >
+              Combined Properties
+            </button>
+            <button
+              onClick={() => setModal({ mode: 'add' })}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm rounded-lg transition-colors"
+            >
+              + Add User
+            </button>
+          </div>
         </div>
       </div>
 
