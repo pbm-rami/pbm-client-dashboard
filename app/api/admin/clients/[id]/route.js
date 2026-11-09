@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   const session = await getServerSession(authOptions);
   if (!isAdmin(session)) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     const body = await request.json();
@@ -80,7 +80,7 @@ export async function DELETE(request, { params }) {
   const session = await getServerSession(authOptions);
   if (!isAdmin(session)) return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { id } = params;
+  const { id } = await params;
 
   try {
     await bigquery.query({
