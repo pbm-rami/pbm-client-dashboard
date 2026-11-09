@@ -4,6 +4,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { isAdmin } from '@/lib/client';
+import { hashPassword } from '@/lib/password';
 import { randomUUID } from 'crypto';
 
 const bigquery = new BigQuery({
@@ -26,7 +27,7 @@ export async function GET() {
     const [rows] = await bigquery.query({
       query: `
         SELECT
-          id, display_name, email, client_name, role, is_active,
+          id, display_name, email, client_name, client_names, role, is_active,
           created_at, updated_at
         FROM ${TABLE}
         ORDER BY display_name ASC
@@ -58,7 +59,7 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { display_name, email, password, client_name, role } = body;
+    const { display_name, email, password, client_name, client_names, role } = body;
 
     if (!display_name?.trim()) return Response.json({ error: 'display_name is required' }, { status: 400 });
     if (!email?.trim())        return Response.json({ error: 'email is required' },        { status: 400 });
@@ -69,21 +70,33 @@ export async function POST(request) {
 
     // Build INSERT dynamically so we can omit password when not provided
     const hasPassword = password?.trim();
-    const cols   = 'id, display_name, email, client_name, role, is_active, created_at, updated_at';
-    const vals   = '@id, @display_name, @email, NULLIF(@client_name, \'\'), @role, TRUE, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()';
+    // See the PUT route for why an empty client_names is a typed literal, not a param.
+    const cleanedNames = (Array.isArray(client_names) ? client_names : [])
+      .map(n => String(n).trim())
+      .filter(Boolean);
+    const namesSql = cleanedNames.length > 0 ? '@client_names' : 'ARRAY<STRING>[]';
+
+    const cols   = 'id, display_name, email, client_name, client_names, role, is_active, created_at, updated_at';
+    const vals   = `@id, @display_name, @email, NULLIF(@client_name, ''), ${namesSql}, @role, TRUE, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()`;
     const params = {
       id,
       display_name: display_name.trim(),
       email:        email.trim().toLowerCase(),
       client_name:  client_name?.trim() ?? '',
       role:         role.trim(),
+      ...(cleanedNames.length > 0 ? { client_names: cleanedNames } : {}),
     };
 
+    // Store the bcrypt hash alongside the plain-text column (kept for rollback);
+    // sign-in uses the hash. See lib/password.js.
     const query = hasPassword
-      ? `INSERT INTO ${TABLE} (password, ${cols}) VALUES (@password, ${vals})`
+      ? `INSERT INTO ${TABLE} (password, password_hash, ${cols}) VALUES (@password, @password_hash, ${vals})`
       : `INSERT INTO ${TABLE} (${cols}) VALUES (${vals})`;
 
-    if (hasPassword) params.password = password.trim();
+    if (hasPassword) {
+      params.password      = password.trim();
+      params.password_hash = await hashPassword(params.password);
+    }
 
     await bigquery.query({ query, params, location: 'US' });
 

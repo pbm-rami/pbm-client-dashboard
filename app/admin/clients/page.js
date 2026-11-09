@@ -54,6 +54,7 @@ function ClientModal({ mode, client, clientNames, onClose, onSaved }) {
     email:        '',
     password:     '',
     client_name:  '',
+    client_names: [],
     role:         'client',
     is_active:    true,
   };
@@ -130,7 +131,7 @@ function ClientModal({ mode, client, clientNames, onClose, onSaved }) {
           <FormField
             label="Password"
             hint={isEdit
-              ? 'Leave blank to keep current. Clear it to remove password access.'
+              ? 'Leave blank to keep the current password. Type a new one to replace it.'
               : 'Optional — client can sign in with Google or a magic email link instead.'}
           >
             <input
@@ -143,14 +144,39 @@ function ClientModal({ mode, client, clientNames, onClose, onSaved }) {
             />
           </FormField>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="BigQuery Client Name">
+          <div className="grid grid-cols-1 gap-4">
+            <FormField label="BigQuery Client Name(s)">
+              {/* Multi-select: hold ⌘/Ctrl to pick more than one. Selecting
+                  several grants this login partner sub-access to all of them.
+                  Leaving it empty falls back to the legacy single client_name
+                  below, which is how the existing single-client logins work. */}
+              <select
+                multiple
+                size={6}
+                className={`${selectCls} h-auto`}
+                value={form.client_names ?? []}
+                onChange={e => set('client_names', Array.from(e.target.selectedOptions, o => o.value))}
+              >
+                {clientNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Hold ⌘ / Ctrl to select multiple. Leave empty for admin/staff, or
+                to keep using the single client name below.
+              </p>
+            </FormField>
+
+            <FormField label="Legacy single Client Name">
               <select className={selectCls} value={form.client_name ?? ''} onChange={e => set('client_name', e.target.value)}>
                 <option value="">— None (Admin) —</option>
                 {clientNames.map(name => (
                   <option key={name} value={name}>{name}</option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Used only when no client name is selected above.
+              </p>
             </FormField>
             <FormField label="Role">
               <select className={selectCls} value={form.role} onChange={e => set('role', e.target.value)}>
@@ -336,7 +362,17 @@ export default function AdminClientsPage() {
                   <tr key={client.id} className={`hover:bg-[#2e3035] transition-colors ${!client.is_active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium text-white">{client.display_name}</td>
                     <td className="px-4 py-3 text-slate-300">{client.email}</td>
-                    <td className="px-4 py-3 text-slate-300">{client.client_name || <span className="text-slate-600 italic">None</span>}</td>
+                    <td className="px-4 py-3 text-slate-300">
+                      {client.client_names?.length > 0
+                        ? (
+                          <span className="flex flex-wrap gap-1">
+                            {client.client_names.map(n => (
+                              <span key={n} className="inline-block rounded bg-[#3a3d44] px-1.5 py-0.5 text-xs">{n}</span>
+                            ))}
+                          </span>
+                        )
+                        : client.client_name || <span className="text-slate-600 italic">None</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge color={client.role === 'admin' ? 'amber' : client.role === 'staff' ? 'blue' : 'slate'}>
                         {client.role}

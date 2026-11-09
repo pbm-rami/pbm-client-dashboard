@@ -4,6 +4,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { isAdmin } from '@/lib/client';
+import { hashPassword } from '@/lib/password';
 
 const bigquery = new BigQuery({
   projectId:   process.env.GCP_PROJECT_ID,
@@ -26,7 +27,7 @@ export async function PUT(request, { params }) {
 
   try {
     const body = await request.json();
-    const { display_name, email, password, client_name, role, is_active } = body;
+    const { display_name, email, password, client_name, client_names, role, is_active } = body;
 
     const setClauses  = ['updated_at = CURRENT_TIMESTAMP()'];
     const queryParams = { id };
@@ -39,15 +40,36 @@ export async function PUT(request, { params }) {
       setClauses.push('email = @email');
       queryParams.email = email.trim().toLowerCase();
     }
-    // Only update password when the caller explicitly sent a non-empty value
+    // Only update password when the caller explicitly sent a non-empty value.
+    // The hash must be replaced too: sign-in checks password_hash first, so
+    // updating only the plain-text column would leave the old password working.
+    // The plain-text column is still written so a rollback to the old code works.
     if (password && password.trim()) {
-      setClauses.push('password = @password');
-      queryParams.password = password.trim();
+      const plain = password.trim();
+      setClauses.push('password = @password', 'password_hash = @password_hash');
+      queryParams.password      = plain;
+      queryParams.password_hash = await hashPassword(plain);
     }
     if (client_name !== undefined) {
       // NULLIF converts empty string → NULL (admin has no client_name)
       setClauses.push('client_name = NULLIF(@client_name, \'\')');
       queryParams.client_name = client_name?.trim() ?? '';
+    }
+    if (client_names !== undefined) {
+      // Partner sub-access: one login → several BigQuery client names.
+      // An empty selection is written as a typed empty array literal rather
+      // than a parameter, because BigQuery cannot infer the element type of an
+      // empty array param. Empty here means "fall back to client_name" —
+      // see lib/client.js getClientNames().
+      const cleaned = (Array.isArray(client_names) ? client_names : [])
+        .map(n => String(n).trim())
+        .filter(Boolean);
+      if (cleaned.length > 0) {
+        setClauses.push('client_names = @client_names');
+        queryParams.client_names = cleaned;
+      } else {
+        setClauses.push('client_names = ARRAY<STRING>[]');
+      }
     }
     if (role !== undefined) {
       setClauses.push('role = @role');

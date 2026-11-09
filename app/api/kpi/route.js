@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { getClientName } from '@/lib/client';
+import { getClientNames } from '@/lib/client';
 
 const bigquery = new BigQuery({
   projectId: process.env.GCP_PROJECT_ID,
@@ -13,7 +13,13 @@ const bigquery = new BigQuery({
 export async function GET(request) {
   try {
     const session    = await getServerSession(authOptions);
-    const clientName = getClientName(session, request);
+    const clientNames = getClientNames(session, request);
+    // Empty array = this login resolves to no client scope (see lib/client.js).
+    // Fail closed: return no data rather than an unfiltered query.
+    if (Array.isArray(clientNames) && clientNames.length === 0) {
+      return Response.json({ data: [] });
+    }
+
 
     // CTE pulls all fields from the generic client view, PLUS the
     // quarterly sibling view, UNION ALL'd together so the dropdown
@@ -23,7 +29,7 @@ export async function GET(request) {
     // know whether a row is a month or a quarter — period_type
     // is the only new field, used to split the dropdown and to
     // keep quarter rows out of month-only trend charts.
-    const clientFilter = clientName ? ` AND client_name = @clientName` : '';
+    const clientFilter = clientNames ? ` AND client_name IN UNNEST(@clientNames)` : '';
 
     let query = `
       WITH cp AS (
@@ -129,7 +135,7 @@ export async function GET(request) {
 
     // Admin with no ?client= sees all clients; otherwise filter by name.
     // Same named param is safe to reuse across both UNION ALL branches.
-    const params = clientName ? { clientName } : {};
+    const params = clientNames ? { clientNames } : {};
 
     const [rows] = await bigquery.query({
       query,
