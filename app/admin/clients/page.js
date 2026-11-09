@@ -131,7 +131,7 @@ function ClientModal({ mode, client, clientNames, onClose, onSaved }) {
           <FormField
             label="Password"
             hint={isEdit
-              ? 'Leave blank to keep current. Clear it to remove password access.'
+              ? 'Leave blank to keep the current password. Type a new one to replace it.'
               : 'Optional — client can sign in with Google or a magic email link instead.'}
           >
             <input

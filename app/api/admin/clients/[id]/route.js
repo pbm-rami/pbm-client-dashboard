@@ -4,6 +4,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { isAdmin } from '@/lib/client';
+import { hashPassword } from '@/lib/password';
 
 const bigquery = new BigQuery({
   projectId:   process.env.GCP_PROJECT_ID,
@@ -39,10 +40,15 @@ export async function PUT(request, { params }) {
       setClauses.push('email = @email');
       queryParams.email = email.trim().toLowerCase();
     }
-    // Only update password when the caller explicitly sent a non-empty value
+    // Only update password when the caller explicitly sent a non-empty value.
+    // The hash must be replaced too: sign-in checks password_hash first, so
+    // updating only the plain-text column would leave the old password working.
+    // The plain-text column is still written so a rollback to the old code works.
     if (password && password.trim()) {
-      setClauses.push('password = @password');
-      queryParams.password = password.trim();
+      const plain = password.trim();
+      setClauses.push('password = @password', 'password_hash = @password_hash');
+      queryParams.password      = plain;
+      queryParams.password_hash = await hashPassword(plain);
     }
     if (client_name !== undefined) {
       // NULLIF converts empty string → NULL (admin has no client_name)

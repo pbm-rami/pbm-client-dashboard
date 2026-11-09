@@ -4,6 +4,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { isAdmin } from '@/lib/client';
+import { hashPassword } from '@/lib/password';
 import { randomUUID } from 'crypto';
 
 const bigquery = new BigQuery({
@@ -86,11 +87,16 @@ export async function POST(request) {
       ...(cleanedNames.length > 0 ? { client_names: cleanedNames } : {}),
     };
 
+    // Store the bcrypt hash alongside the plain-text column (kept for rollback);
+    // sign-in uses the hash. See lib/password.js.
     const query = hasPassword
-      ? `INSERT INTO ${TABLE} (password, ${cols}) VALUES (@password, ${vals})`
+      ? `INSERT INTO ${TABLE} (password, password_hash, ${cols}) VALUES (@password, @password_hash, ${vals})`
       : `INSERT INTO ${TABLE} (${cols}) VALUES (${vals})`;
 
-    if (hasPassword) params.password = password.trim();
+    if (hasPassword) {
+      params.password      = password.trim();
+      params.password_hash = await hashPassword(params.password);
+    }
 
     await bigquery.query({ query, params, location: 'US' });
 
