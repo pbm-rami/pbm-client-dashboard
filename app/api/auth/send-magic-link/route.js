@@ -13,12 +13,14 @@ export const dynamic = 'force-dynamic';
  * Required env vars:
  *   RESEND_API_KEY   — from resend.com (free: 3,000 emails/month)
  *   EMAIL_FROM       — e.g. "Pricing By Mira <noreply@yourdomain.com>"
- *   NEXTAUTH_URL     — e.g. "https://your-app.vercel.app"
+ *   NEXTAUTH_URL     — e.g. "https://your-app.vercel.app" (previews link to
+ *                      their own address instead; see lib/app-url.js)
  *   NEXTAUTH_SECRET  — used for HMAC signing
  */
 
 import { BigQuery }           from '@google-cloud/bigquery';
 import { generateMagicToken } from '@/lib/magic-token';
+import { appBaseUrl }         from '@/lib/app-url';
 import { Resend }             from 'resend';
 
 let _bq = null;
@@ -74,7 +76,7 @@ export async function POST(request) {
 
   // ── Generate token + build login URL ─────────────────────────────────────
   const token    = generateMagicToken(email);
-  const baseUrl  = process.env.NEXTAUTH_URL?.replace(/\/$/, '') ?? '';
+  const baseUrl  = appBaseUrl();   // a preview links back to the preview
   const loginUrl = `${baseUrl}/login?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
 
   // ── Send email via Resend ─────────────────────────────────────────────────

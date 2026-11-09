@@ -87,10 +87,24 @@ export default function KeyMetrics({ portfolioData: p, listingData: l, mode = 'p
     <div className="bg-[#2a2c30] border border-[#383b40] rounded-xl p-5">
       {/* Panel title */}
       <p className="text-[#e4cf8b] text-xs font-semibold tracking-widest mb-1">
-        {isListing ? 'LISTING METRICS' : 'KEY METRICS'}
+        {isListing ? (l?.is_property ? 'PROPERTY METRICS' : 'LISTING METRICS') : 'KEY METRICS'}
       </p>
       {isListing && (
         <p className="text-white font-bold text-base mb-3">{listingName}</p>
+      )}
+      {/* Combined properties (lib/property-groups.js): explain whose goal this is */}
+      {isListing && l?.is_property && (
+        <p className="text-slate-400 text-xs mb-3 -mt-2">
+          {l.unit_count} units booked separately or together. Revenue and goal are added up; occupancy, ADR and
+          RevPAR are per unit-night, and blocked nights exclude nights the units block each other.
+        </p>
+      )}
+      {isListing && !l?.is_property && l?.property_name && (
+        <p className="text-slate-400 text-xs mb-3 -mt-2">
+          {l.property_role === 'unit' && l.rental_revenue_goal == null
+            ? <>Goal is tracked on the whole property. Choose <b className="text-slate-200">🏠 {l.property_name}</b> to see it.</>
+            : <>Part of <b className="text-slate-200">🏠 {l.property_name}</b>. Choose the whole property to include every booking.</>}
+        </p>
       )}
 
       {/* REVENUE */}

@@ -57,10 +57,21 @@ export default function ListingsTable({ data }) {
                 const vsColor = vsStly == null ? 'text-slate-400' : vsStly >= 0 ? 'text-emerald-400' : 'text-red-400';
                 return (
                   <tr key={i} className="border-b border-[#383b40] hover:bg-[#20203a] transition-colors">
-                    <td className="py-3 pr-4 text-white font-medium">{row.listing_name}</td>
+                    <td className="py-3 pr-4 text-white font-medium">
+                      {row.listing_name}
+                      {row.property_name && (
+                        <span className="block text-slate-500 text-xs font-normal">
+                          {row.property_role === 'combined' ? 'Combined listing' : 'Unit'} · 🏠 {row.property_name}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-2 text-center text-slate-300">{row.bedroom_count ?? '—'}</td>
                     <td className="py-3 px-3 text-right text-white font-semibold">{fmt$(row.rental_revenue)}</td>
-                    <td className="py-3 px-3 text-center"><GoalBadge pct={row.pct_to_goal} /></td>
+                    <td className="py-3 px-3 text-center">
+                      {row.pct_to_goal == null && row.property_role === 'unit'
+                        ? <span className="text-slate-500 text-xs" title={`Goal is tracked on ${row.property_name}`}>On property</span>
+                        : <GoalBadge pct={row.pct_to_goal} />}
+                    </td>
                     <td className="py-3 px-3 text-right text-slate-200">{fmtPct(row.occupancy_pct)}</td>
                     <td className="py-3 px-3 text-right text-slate-200">{fmt$(row.rental_adr)}</td>
                     <td className="py-3 px-3 text-right text-slate-200">{fmt$(row.rental_revpar)}</td>

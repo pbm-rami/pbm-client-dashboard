@@ -4,6 +4,13 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { getClientNames } from '@/lib/client';
+import {
+  PROPERTY_GROUPS_TABLE,
+  isPropertyKey,
+  propertyIdFromKey,
+  propertyGroupsTableExists,
+  propertyRowsCtes,
+} from '@/lib/property-groups';
 
 const bigquery = new BigQuery({
   projectId: process.env.GCP_PROJECT_ID,
@@ -14,7 +21,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const month   = searchParams.get('month');    // "YYYY-MM" or a quarter key like "2026-Q1"
-    const listing = searchParams.get('listing');  // listing name or empty
+    const listing = searchParams.get('listing');  // listing name, "property:<id>", or empty
 
     const session    = await getServerSession(authOptions);
     const clientNames = getClientNames(session, request);
@@ -41,6 +48,63 @@ export async function GET(request) {
     const clientFilter = clientNames
       ? `WHERE client_name IN UNNEST(@clientNames)`
       : `WHERE 1=1`;
+    const clientWhere = clientNames ? 'client_name IN UNNEST(@clientNames)' : 'TRUE';
+
+    // ── Property groups (see lib/property-groups.js) ──────────────────────
+    // listing=property:<id> selects a whole property: its combined numbers
+    // plus its member listings. Every listing row is also labelled with the
+    // property it belongs to, so units can say their goal is on the property.
+    const groupsReady = await propertyGroupsTableExists(bigquery);
+    const propertyId  = isPropertyKey(listing) ? propertyIdFromKey(listing) : null;
+    if (propertyId && !groupsReady) return Response.json({ data: [], property: null });
+
+    const propertyCtes = propertyId
+      ? propertyRowsCtes({
+          clientWhere,
+          grain:     isQuarter ? 'quarter' : 'month',
+          groupsSql: `SELECT group_id, property_name, client_name, listing_id, member_role, units_covered
+                      FROM ${PROPERTY_GROUPS_TABLE} WHERE group_id = @propertyId`,
+        })
+      : null;
+    const propertySelect = `
+      SELECT
+        *,
+        CASE
+          WHEN pct_to_goal >= 100 THEN 'green'
+          WHEN pct_to_goal >= 85  THEN 'yellow'
+          ELSE                         'red'
+        END AS goal_color,
+        blocked_potential_revenue AS potential_revenue_lost
+      FROM prop_rows`;
+    const tidy = (rows) => rows.map(r => ({
+      ...r,
+      report_month:     r.report_month?.value     ?? r.report_month,
+      last_booked_date: r.last_booked_date?.value ?? r.last_booked_date,
+    }));
+
+    // Whole property, all months → the property's own trend rows.
+    if (propertyId && !month) {
+      const [rows] = await bigquery.query({
+        query:    `WITH ${propertyCtes} ${propertySelect} ORDER BY report_month ASC`,
+        params:   { ...(clientNames ? { clientNames } : {}), propertyId },
+        location: 'US',
+      });
+      return Response.json({ data: tidy(rows) });
+    }
+
+    const memberCte = groupsReady
+      ? `,
+      pgm AS (
+        SELECT CAST(listing_id AS STRING) AS listing_id, group_id AS property_id, property_name,
+               member_role AS property_role
+        FROM ${PROPERTY_GROUPS_TABLE}
+        WHERE ${clientWhere}
+      )`
+      : '';
+    const memberCols = groupsReady
+      ? 'pgm.property_id, pgm.property_name, pgm.property_role,'
+      : 'CAST(NULL AS STRING) AS property_id, CAST(NULL AS STRING) AS property_name, CAST(NULL AS STRING) AS property_role,';
+    const memberJoin = groupsReady ? 'LEFT JOIN pgm ON pgm.listing_id = CAST(lp.listing_id AS STRING)' : '';
 
     let query = `
       WITH max_booked AS (
@@ -129,9 +193,10 @@ export async function GET(request) {
         FROM \`pbm-pl-data-bank.mira_analytics.${sourceView}\` src
         LEFT JOIN max_booked mb ON src.listing_name = mb.listing_name
         ${clientFilter}
-      )
+      )${memberCte}
       SELECT
-        *,
+        lp.*,
+        ${memberCols}
         CASE
           WHEN pct_to_goal >= 100 THEN 'green'
           WHEN pct_to_goal >= 85  THEN 'yellow'
@@ -140,6 +205,7 @@ export async function GET(request) {
         -- Backward-compatible alias
         blocked_potential_revenue AS potential_revenue_lost
       FROM lp
+      ${memberJoin}
       WHERE 1=1
     `;
 
@@ -150,7 +216,11 @@ export async function GET(request) {
       params.month = month;
     }
 
-    if (listing && listing !== 'all' && listing !== '') {
+    if (propertyId) {
+      query += ` AND CAST(lp.listing_id AS STRING) IN (
+        SELECT CAST(listing_id AS STRING) FROM ${PROPERTY_GROUPS_TABLE} WHERE group_id = @propertyId)`;
+      params.propertyId = propertyId;
+    } else if (listing && listing !== 'all' && listing !== '') {
       query += ` AND listing_name = @listing`;
       params.listing = listing;
     }
@@ -171,13 +241,18 @@ export async function GET(request) {
       params,
     });
 
-    const data = rows.map(r => ({
-      ...r,
-      report_month:     r.report_month?.value     ?? r.report_month,
-      last_booked_date: r.last_booked_date?.value ?? r.last_booked_date,
-    }));
+    // Whole property, one period → member rows for the tables, plus the
+    // property's combined row for Key Metrics.
+    if (propertyId) {
+      const [prop] = await bigquery.query({
+        query:    `WITH ${propertyCtes} ${propertySelect} WHERE month_key = @month`,
+        params:   { ...(clientNames ? { clientNames } : {}), propertyId, month },
+        location: 'US',
+      });
+      return Response.json({ data: tidy(rows), property: tidy(prop)[0] ?? null });
+    }
 
-    return Response.json({ data });
+    return Response.json({ data: tidy(rows) });
   } catch (error) {
     console.error('Listings route error:', error);
     return Response.json({ error: error.message, data: [] }, { status: 500 });

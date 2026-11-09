@@ -9,6 +9,8 @@ import RevenueChart from '@/components/RevenueChart';
 import TrendCharts from '@/components/TrendCharts';
 import ListingsTable from '@/components/ListingsTable';
 import ListingPerformanceTable from '@/components/ListingPerformanceTable';
+import ListingSelect from '@/components/ListingSelect';
+import { isPropertyKey } from '@/lib/property-groups';
 
 export default function ClientDashboard() {
   const { data: session, status } = useSession();
@@ -26,6 +28,8 @@ export default function ClientDashboard() {
   const [allListingNames, setAllListingNames] = useState([]);
   const [selectedMonth, setSelectedMonth]   = useState('');
   const [selectedListing, setSelectedListing] = useState('all');
+  const [properties, setProperties]         = useState([]);   // combined-property groups for the filter
+  const [listingProperty, setListingProperty] = useState(null); // selected property's numbers for the period
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState('');
 
@@ -51,10 +55,11 @@ export default function ClientDashboard() {
     async function initialLoad() {
       setLoading(true);
       try {
-        const [kpiRes, trendsRes, allListRes] = await Promise.all([
+        const [kpiRes, trendsRes, allListRes, propRes] = await Promise.all([
           fetch(apiUrl('/api/kpi')),
           fetch(apiUrl('/api/trends')),
           fetch(apiUrl('/api/listings')),
+          fetch(apiUrl('/api/properties')),
         ]);
         const kpi     = await kpiRes.json();
         const trends  = await trendsRes.json();
@@ -68,6 +73,7 @@ export default function ClientDashboard() {
         const names = [...new Set(allListRows.map(r => r.listing_name))].sort();
         setAllListingNames(names);
         setAllListingsData(allListRows);
+        setProperties((await propRes.json().catch(() => ({}))).data || []);
 
         // Default to current month if available, otherwise most recent month with data.
         // Restricted to period_type === 'month' rows — quarters are an opt-in extra
@@ -103,6 +109,7 @@ export default function ClientDashboard() {
         const res  = await fetch(apiUrl('/api/listings', params));
         const json = await res.json();
         setListingsData(json.data || []);
+        setListingProperty(json.property ?? null);
       } catch (e) {
         console.error('Listings fetch error:', e);
       }
@@ -128,7 +135,11 @@ export default function ClientDashboard() {
   }, [selectedListing, session, clientName]);
 
   const currentKpi     = kpiData.find(r => r.month_key === selectedMonth);
-  const currentListing = selectedListing !== 'all' ? listingsData[0] : null;
+  // A whole property is selected as "property:<id>"; its numbers come back separately.
+  const isPropertySel    = isPropertyKey(selectedListing);
+  const selectedProperty = isPropertySel ? properties.find(p => p.key === selectedListing) : null;
+  const selectedLabel    = selectedListing === 'all' ? null : (isPropertySel ? (selectedProperty?.property_name ?? 'Property') : selectedListing);
+  const currentListing   = selectedListing === 'all' ? null : (isPropertySel ? listingProperty : listingsData[0]);
 
   const hasData = r => (r.total_rental_revenue ?? 0) > 0 || (r.total_revenue_goal ?? 0) > 0;
   const availableMonths   = kpiData.filter(r => r.period_type === 'month'   && hasData(r));
@@ -193,11 +204,11 @@ export default function ClientDashboard() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3 text-sm text-slate-400">
               <span>👤 {clientName}</span>
               <span className="text-slate-600 hidden sm:inline">|</span>
-              <span>{selectedListing !== 'all' ? selectedListing : `${clientName} Portfolio`}</span>
+              <span>{selectedLabel ?? `${clientName} Portfolio`}</span>
               <span className="text-slate-600 hidden sm:inline">|</span>
               <span>
                 {selectedListing !== 'all'
-                  ? `${currentListing?.bedroom_count ?? '—'} Bedrooms`
+                  ? `${currentListing?.bedroom_count ?? '—'} Bedrooms${isPropertySel && currentListing?.unit_count ? ` · ${currentListing.unit_count} units` : ''}`
                   : `Portfolio · ${currentKpi?.total_bedrooms ?? '—'} Bedrooms`}
               </span>
               {selectedListing === 'all' && currentKpi?.active_listings && (
@@ -244,16 +255,13 @@ export default function ClientDashboard() {
               </optgroup>
             )}
           </select>
-          <select
+          <ListingSelect
             value={selectedListing}
-            onChange={e => setSelectedListing(e.target.value)}
+            onChange={setSelectedListing}
+            listingNames={allListingNames}
+            properties={properties}
             className="flex-1 sm:flex-none px-3 py-1.5 bg-[#212327] border border-[#383b40] rounded-lg text-white text-sm focus:outline-none focus:border-[#e4cf8b] cursor-pointer sm:min-w-[180px]"
-          >
-            <option value="all">All Listings</option>
-            {allListingNames.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+          />
           {selectedListing !== 'all' && (
             <button
               onClick={() => setSelectedListing('all')}
@@ -282,7 +290,7 @@ export default function ClientDashboard() {
                   portfolioData={currentKpi}
                   listingData={currentListing}
                   mode={selectedListing !== 'all' ? 'listing' : 'portfolio'}
-                  listingName={selectedListing !== 'all' ? selectedListing : null}
+                  listingName={selectedLabel}
                 />
               </div>
               <div className="flex-1 min-w-0 flex flex-col gap-6">
@@ -290,7 +298,7 @@ export default function ClientDashboard() {
                   data={revenueChartData}
                   selectedMonth={selectedMonth}
                   isListingMode={selectedListing !== 'all'}
-                  listingName={selectedListing !== 'all' ? selectedListing : null}
+                  listingName={selectedLabel}
                 />
                 <TrendCharts data={trendChartsData} />
                 <ListingsTable data={listingsData} />
